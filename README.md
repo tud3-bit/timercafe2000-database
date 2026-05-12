@@ -7,8 +7,10 @@ Projeto de banco de dados relacional para gestão de uma Lan House.
 - VS Code
 
 ### Estrutura (DER)
+upload commit!
 
 #### Estrutura (MER)
+upload coommit!
 
 ##### Executar
 1. script `01_schema.sql` para estrutura.
