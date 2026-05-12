@@ -1,4 +1,4 @@
-# TIMERCAFE2000 - Sistema de Banco de Dados
+# TIMERCAFE2000 
 Projeto de banco de dados relacional para gestão de uma Lan House.
 
 ## Ferramentas de criação
@@ -9,9 +9,9 @@ Projeto de banco de dados relacional para gestão de uma Lan House.
 ### Estrutura (DER)
 upload commit!
 
-#### Estrutura (MER)
+### Estrutura (MER)
 upload coommit!
 
-##### Executar
+### Executar
 1. script `01_schema.sql` para estrutura.
 2. script `02_data.sql` para inserção de  dados  teste.
