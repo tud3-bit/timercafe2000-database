@@ -19,15 +19,12 @@ O **TIMERCAFE2000** foi concebido para resolver o problema de gerenciamento de t
 ## 📐 Modelagem do Banco de Dados
 
 ### 1. Diagrama Entidade-Relacionamento (DER)
-*Modelo conceitual que apresenta os conceitos gerais e relacionamentos do sistema.*
 
-![Diagrama Entidade Relacionamento](caminho_para_sua_imagem_der.png)
+![Diagrama Entidade Relacionamento] commit - DER-TIMERCAFE.pdf
 
 ### 2. Modelo Entidade-Relacionamento (MER)
-*Modelo lógico contendo as tabelas, chaves primárias (PK), chaves estrangeiras (FK) e tipos de dados.*
 
-![Modelo Entidade Relacionamento](caminho_para_sua_imagem_mer.png)
-
+![Modelo Entidade Relacionamento] commit - MER-TIMERCAFE.pdf
 ---
 
 ## 💾 Estrutura de Arquivos
