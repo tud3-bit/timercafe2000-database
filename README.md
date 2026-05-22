@@ -25,7 +25,6 @@ O **TIMERCAFE2000** foi concebido para resolver o problema de gerenciamento de t
 ### 2. Modelo Entidade-Relacionamento (MER)
 
 ![Modelo Entidade Relacionamento] commit - MER-TIMERCAFE.pdf
----
 
 ## 💾 Estrutura de Arquivos
 
