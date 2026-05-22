@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TIMERCAFE2000 - TimerCafe Legacy</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <div id="app">
+        <header class="main-panel panel-header">
+            <h1>🎮 TIMERCAFE2000 - CONTROLE DE ESTAÇÃO v0.1</h1>
+        </header>
+
+        <div style="display: flex; gap: 20px;">
+            
+            <aside class="main-panel" style="flex: 1; max-width: 250px;">
+                <div class="panel-header">
+                    <h2>MENU PRINCIPAL</h2>
+                </div>
+                <div class="control-buttons" style="flex-direction: column;">
+                    <button onclick="listarPCsDisponiveis()">🔄 Atualizar Status</button>
+                    <button>⚡ Recarga Expressa</button>
+                    <button>🍔 Pedir Snack</button>
+                    <button>🏆 Torneios</button>
+                    <hr style="border: 1px solid #50BFE6; margin: 10px 0;">
+                    <button style="border-color: #ff4757;">🚪 Logout</button>
+                </div>
+                
+                <div style="margin-top: 20px; font-size: 0.8rem; color: #50BFE6;">
+                    <p>Sessões Ativas: <span id="countAtivas">0</span></p>
+                    <p>Servidor: <span style="color: #00FF00;">Online (3000)</span></p>
+                </div>
+            </aside>
+
+            <main class="main-panel" style="flex: 3;">
+                <div class="panel-header">
+                    <h2>MÁQUINAS DISPONÍVEIS</h2>
+                </div>
+                <div id="pcGrid" class="pc-grid">
+                    <p style="color: #50BFE6;">Conectando ao banco de dados...</p>
+                </div>
+            </main>
+
+        </div>
+
+        <footer style="margin-top: auto; padding: 10px; font-size: 0.7rem; opacity: 0.7; text-align: center;">
+            &copy; 2026 - Inspirado no clássico TimerCafe Brasil.
+        </footer>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
