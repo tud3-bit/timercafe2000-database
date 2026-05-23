@@ -1,97 +1,102 @@
 DELIMITER //
 
 CREATE PROCEDURE sp_abrir_sessao(
-  IN p_id_cliente INT,
-  IN p_id_maquina INT,
-  OUT p_id_sessao INT
-  )
-
+    IN p_id_cliente INT,
+    IN p_id_maquina INT,
+    OUT p_id_sessao INT
+)
 BEGIN 
-      DECLARE v_status_pc VARCHAR (15);
+    DECLARE v_status_pc VARCHAR (15);
 
-DECLARE EXIT HANDLER FOR SQLEXCEPTION 
-BEGIN
-     ROLLBACK;
-     RESIGNAL;
-END;
+    -- Handler para dar ROLLBACK em caso de qualquer erro SQL
+    DECLARE EXIT HANDLER FOR SQLEXCEPTION 
+    BEGIN
+         ROLLBACK;
+         RESIGNAL;
+    END;
 
--- Handler para dar ROLLBACK em caso de qualquer erro SQL
-SELECT STATUS INTO v_status_pc
-FROM COMPUTADOR
-WHERE ID_MAQUINA = p_id_maquina;
+    -- Iniciar a transação antes para garantir atomicidade e evitar concorrência
+    START TRANSACTION;
 
-IF v_status_pc != 'DISPONÍVEL' THEN
-SIGNAL SQLSTATE '45000'
-SET MESSAGE_TEXT = 'Erro: Este computador não está disponível no momento.';
-ELSE
-  
--- Iniciar o bloco seguro de modificação
-START TRANSACTION;
+    -- O FOR UPDATE bloqueia o registro até o COMMIT/ROLLBACK
+    SELECT STATUS INTO v_status_pc
+    FROM COMPUTADOR
+    WHERE ID_MAQUINA = p_id_maquina
+    FOR UPDATE;
 
-INSERT INTO SESSAO (INICIO_SESSAO, STATUS, ID_CLIENTE, ID_MAQUINA)
-VALUES (NOW(), 'aberta', p_id_cliente, p_id_maquina);
+    IF v_status_pc != 'DISPONÍVEL' THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'Erro: Este computador não está disponível no momento.';
+    ELSE
+        INSERT INTO SESSAO (INICIO_SESSAO, STATUS, ID_CLIENTE, ID_MAQUINA)
+        VALUES (NOW(), 'aberta', p_id_cliente, p_id_maquina);
 
-SET p_id_sessao = LAST_INSERT_ID();
+        SET p_id_sessao = LAST_INSERT_ID();
 
-UPDATE COMPUTADOR
-SET STATUS = 'OCUPADO'
-WHERE ID_MAQUINA = p_id_maquina;
+        UPDATE COMPUTADOR
+        SET STATUS = 'OCUPADO'
+        WHERE ID_MAQUINA = p_id_maquina;
 
-COMMIT;
-END IF;
+        COMMIT;
+    END IF;
+END //
+DELIMITER ;
 
-DELIMITER;
 
 DELIMITER //
 
 CREATE PROCEDURE sp_fechar_sessao(
-  IN p_id_sessao INT
-  )
-
+    IN p_id_sessao INT
+)
 BEGIN
-     DECLARE v_id_maquina INT;
-     DECLARE v_inicio DATETIME;
-     DECLARE v_preco_hora DECIMAL (10,2);
-     DECLARE v_horas_decorridas DECIMAL (10,4);
-     DECLARE v_valor_total DECIMAL (10,2);
+    DECLARE v_id_maquina INT;
+    DECLARE v_inicio DATETIME;
+    DECLARE v_preco_hora DECIMAL (10,2);
+    DECLARE v_horas_decorridas DECIMAL (10,4);
+    DECLARE v_valor_total DECIMAL (10,2);
 
-DECLARE EXIT HANDLER FOR SQLEXCEPTION
-BEGIN
-      ROLLBACK;
-      RESIGNAL;
-END;
+    DECLARE EXIT HANDLER FOR SQLEXCEPTION
+    BEGIN
+         ROLLBACK;
+         RESIGNAL;
+    END;
 
-SELECT ID_MAQUINA, INICIO_SESSAO INTO v_id_maquina, v_inicio
-FROM SESSAO  
-WHERE ID_SESSAO = p_id_sessao AND STATUS = 'aberta';
+    START TRANSACTION;
 
--- Se não achar uma sessão aberta com esse ID
-IF v_id_maquina IS NULL THEN 
-SIGNAL SQLSTATE '45000'
-SET MESSAGE_TEXT = 'Erro: Sessão não encontrada ou já encerrada.';
-ELSE
-    SELECT PRECO_HORA INTO v_preco_hora
-    FROM COMPUTADOR
-    WHERE ID_MAQUINA = v_id_maquina;
+    -- Bloqueia a sessão para edição
+    SELECT ID_MAQUINA, INICIO_SESSAO INTO v_id_maquina, v_inicio
+    FROM SESSAO  
+    WHERE ID_SESSAO = p_id_sessao AND STATUS = 'aberta'
+    FOR UPDATE;
 
-SET v_horas_decorridas = TIMESTAMPDIFF(SECOND, v_inicio, NOW()) / 3600.0;
-SET v_valor_total = v_horas_decorridas * v_preco_hora;
+    -- Se não achar uma sessão aberta com esse ID
+    IF v_id_maquina IS NULL THEN 
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'Erro: Sessão não encontrada ou já encerrada.';
+    ELSE
+        SELECT PRECO_HORA INTO v_preco_hora
+        FROM COMPUTADOR
+        WHERE ID_MAQUINA = v_id_maquina;
 
-START TRANSACTION;
-UPDATE SESSAO
-SET FIM_SESSAO = NOW(),
-    VALOR_TOTAL = ROUND(v_valor_total, 2),
-    STATUS = 'finalizada'
-WHERE ID_SESSAO = p_id_sessao;
+        -- Calcula o tempo e o valor proporcional
+        SET v_horas_decorridas = TIMESTAMPDIFF(SECOND, v_inicio, NOW()) / 3600.0;
+        SET v_valor_total = v_horas_decorridas * v_preco_hora;
 
-UPDATE COMPUTADOR
-SET STATUS = 'DISPONIVEL'
-WHERE ID_MAQUINA = v_id_maquina;
+        UPDATE SESSAO
+        SET FIM_SESSAO = NOW(),
+            VALOR_TOTAL = ROUND(v_valor_total, 2),
+            STATUS = 'finalizada'
+        WHERE ID_SESSAO = p_id_sessao;
 
-COMMIT;
-END IF;
+        UPDATE COMPUTADOR
+        SET STATUS = 'DISPONÍVEL' -- Ajustado para bater com o padrão com acento se necessário
+        WHERE ID_MAQUINA = v_id_maquina;
 
-DELIMITER;
+        COMMIT;
+    END IF;
+END //
+DELIMITER ;
+
 
 DELIMITER //
 
@@ -111,10 +116,13 @@ BEGIN
         RESIGNAL;
     END;
 
-    -- Captura o estoque e preço do produto
+    START TRANSACTION;
+
+    -- Captura o estoque e preço travando a linha do produto para evitar venda duplicada sem estoque
     SELECT ESTOQUE, PRECO INTO v_estoque_atual, v_preco_produto 
     FROM PRODUTO 
-    WHERE ID_PRODUTO = p_id_produto;
+    WHERE ID_PRODUTO = p_id_produto
+    FOR UPDATE;
 
     -- Validação de Regra de Negócio
     IF v_estoque_atual < p_quantidade THEN
@@ -123,18 +131,18 @@ BEGIN
     ELSE
         SET v_subtotal = v_preco_produto * p_quantidade;
 
-        START TRANSACTION;
-            INSERT INTO CONSUMO (QUANTIDADE, SUBTOTAL, ID_SESSAO, ID_PRODUTO)
-            VALUES (p_quantidade, v_subtotal, p_id_sessao, p_id_produto);
+        INSERT INTO CONSUMO (QUANTIDADE, SUBTOTAL, ID_SESSAO, ID_PRODUTO)
+        VALUES (p_quantidade, v_subtotal, p_id_sessao, p_id_produto);
 
-            UPDATE PRODUTO 
-            SET ESTOQUE = ESTOQUE - p_quantidade 
-            WHERE ID_PRODUTO = p_id_produto;
+        UPDATE PRODUTO 
+        SET ESTOQUE = ESTOQUE - p_quantidade 
+        WHERE ID_PRODUTO = p_id_produto;
+        
         COMMIT;
     END IF;
 END //
-
 DELIMITER ;
+
 
 DELIMITER //
 
@@ -152,10 +160,13 @@ BEGIN
         RESIGNAL;
     END;
 
-    -- Obter a capacidade máxima do torneio
+    START TRANSACTION;
+
+    -- Bloqueia o torneio para evitar que ultrapasse o limite em inscrições simultâneas
     SELECT QUANTIDADE_MAXIMA INTO v_vagas_maximas 
     FROM TORNEIO 
-    WHERE ID_TORNEIO = p_id_torneio;
+    WHERE ID_TORNEIO = p_id_torneio
+    FOR UPDATE;
 
     -- Contar quantas inscrições confirmadas já existem
     SELECT COUNT(*) INTO v_inscritos_atuais 
@@ -167,14 +178,14 @@ BEGIN
         SIGNAL SQLSTATE '45000'
         SET MESSAGE_TEXT = 'Erro: O torneio já atingiu o limite máximo de participantes.';
     ELSE
-        START TRANSACTION;
-            INSERT INTO INSCRICAO (ID_CLIENTE, ID_TORNEIO)
-            VALUES (p_id_cliente, p_id_torneio);
+        INSERT INTO INSCRICAO (ID_CLIENTE, ID_TORNEIO)
+        VALUES (p_id_cliente, p_id_torneio);
+        
         COMMIT;
     END IF;
 END //
-
 DELIMITER ;
+
 
 DELIMITER //
 
@@ -199,8 +210,8 @@ BEGIN
     
     RETURN CONCAT(v_horas, 'h ', v_minutos_restantes, 'min');
 END //
-
 DELIMITER ;
+
 
 DELIMITER //
 
@@ -208,7 +219,8 @@ CREATE FUNCTION fn_faturamento_dia(p_data DATE)
 RETURNS DECIMAL(10,2)
 READS SQL DATA
 BEGIN
-    DECLARE v_faturamento TOTAL DECIMAL(10,2);
+    -- Corrigido: Removida a palavra "TOTAL" que quebrava a sintaxe
+    DECLARE v_faturamento DECIMAL(10,2);
     
     SELECT SUM(VALOR_TOTAL) INTO v_faturamento
     FROM SESSAO
@@ -216,8 +228,8 @@ BEGIN
     
     RETURN COALESCE(v_faturamento, 0.00);
 END //
-
 DELIMITER ;
+
 
 DELIMITER //
 
@@ -242,44 +254,4 @@ BEGIN
     
     RETURN v_categoria;
 END //
-
 DELIMITER ;
-
--- Consultando os clientes e suas respectivas categorias redefinidas
-SELECT NOME, SALDO_PONTOS, fn_categoria_cliente(ID_CLIENTE) AS Categoria 
-FROM CLIENTE;
-
--- Verificando o faturamento total arrecadado no dia atual
-SELECT fn_faturamento_dia(CURDATE()) AS Faturamento_De_Hoje;
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
